@@ -22,9 +22,19 @@ jobs:
       - name: Cache voice model
         uses: actions/cache@v4
         with:
-          path: ~/.local/share/piper
-          key: piper-fr-siwis-medium
+          path: ${{ runner.temp }}/voices
+          key: piper-voice-fr-siwis-medium-v1
+      - name: Download French voice model
+        run: |
+          mkdir -p "${{ runner.temp }}/voices"
+          if [ ! -f "${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx" ]; then
+            base="https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium"
+            curl -fL -o "${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx"      "$base/fr_FR-siwis-medium.onnx"
+            curl -fL -o "${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx.json" "$base/fr_FR-siwis-medium.onnx.json"
+          fi
       - name: Generate sentence audio
+        env:
+          PIPER_VOICE: ${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx
         run: python pipeline/generate_audio.py
       - name: Cache generated audio between runs
         uses: actions/cache@v4

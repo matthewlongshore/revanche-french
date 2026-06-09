@@ -13,7 +13,9 @@ import json, glob, os, subprocess, sys, tempfile
 
 APP = os.path.join(os.path.dirname(__file__), "..")
 AUDIO_DIR = os.path.join(APP, "packs", "audio")
-VOICE = os.environ.get("PIPER_VOICE", "fr_FR-siwis-medium")
+# Path to the downloaded .onnx voice (newer piper-tts needs a file, not a name)
+VOICE = os.environ.get("PIPER_VOICE",
+                       os.path.join(APP, "voices", "fr_FR-siwis-medium.onnx"))
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
 def synth(text, out_mp3):
