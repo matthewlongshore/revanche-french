@@ -1,0 +1,21 @@
+{
+"id":"ep-2026-06-09-invendus","title":"Les invendus","type":"episode","date":"2026-06-09",
+"episode":{
+  "title":"Les invendus 🛒",
+  "mp3":"https://sphinx.acast.com/p/open/s/660691ed8268a800165f2bdd/e/6a26e6f0a917ce4c700331dc/media.mp3",
+  "source":"Real Life French — Choses à Savoir",
+  "transcript":[
+    {"speaker":"Julien","fr":"Oh regarde, c'est super ! Le poulet est à -50%, c'est une grosse promo !","en":"Oh look, this is great! The chicken is 50% off — that's a big sale!"},
+    {"speaker":"Louise","fr":"Ah bah oui, c'est pour éviter que les invendus soient jetés !","en":"Well yeah — it's to keep unsold items from being thrown away!"},
+    {"speaker":"Julien","fr":"Franchement, c'est une super bonne affaire ! On devrait y jeter un œil plus souvent.","en":"Honestly, it's a really good deal! We should check this out more often."},
+    {"speaker":"Louise","fr":"C'est clair que si on peut manger bien pour moins cher, on va pas se gêner !","en":"For sure — if we can eat well for less, we're not going to hold back!"}
+  ]
+},
+"cards":[
+{"id":"ep0609-01","fr":"Le poulet est à moins cinquante pour cent, c'est une grosse promo !","en":"The chicken is 50% off — that's a big sale!","note":"être à -X% ; une promo","scene":"Les invendus","audio":"packs/audio/ep0609-01.mp3"},
+{"id":"ep0609-02","fr":"C'est pour éviter que les invendus soient jetés.","en":"It's to keep unsold items from being thrown away.","note":"éviter que + subjonctif ; les invendus","scene":"Les invendus","audio":"packs/audio/ep0609-02.mp3"},
+{"id":"ep0609-03","fr":"Franchement, c'est une super bonne affaire !","en":"Honestly, it's a really good deal!","note":"une bonne affaire","scene":"Les invendus","audio":"packs/audio/ep0609-03.mp3"},
+{"id":"ep0609-04","fr":"On devrait y jeter un œil plus souvent.","en":"We should take a look at that more often.","note":"jeter un œil à qqch → y jeter un œil","scene":"Les invendus","audio":"packs/audio/ep0609-04.mp3"},
+{"id":"ep0609-05","fr":"C'est clair que si on peut manger bien pour moins cher, on va pas se gêner !","en":"For sure — if we can eat well for less, we won't hold back!","note":"c'est clair que… ; ne pas se gêner","scene":"Les invendus","audio":"packs/audio/ep0609-05.mp3"},
+{"id":"ep0609-06","fr":"Ah bah oui, évidemment.","en":"Well yeah, obviously.","note":"« bah » — le son le plus français qui soit","scene":"Les invendus","audio":"packs/audio/ep0609-06.mp3"}
+]}

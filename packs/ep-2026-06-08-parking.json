@@ -1,0 +1,21 @@
+{
+"id":"ep-2026-06-08-parking","title":"La galère de parking","type":"episode","date":"2026-06-08",
+"episode":{
+  "title":"La galère de parking 🚗",
+  "mp3":"https://sphinx.acast.com/p/open/s/660691ed8268a800165f2bdd/e/6a243e18a2db34bb89770751/media.mp3",
+  "source":"Real Life French — Choses à Savoir",
+  "transcript":[
+    {"speaker":"Julien","fr":"Bon, ça fait une demi-heure qu'on tourne en rond ! C'est impossible de se garer ici.","en":"OK, we've been going in circles for half an hour! It's impossible to park here."},
+    {"speaker":"Louise","fr":"Calme-toi, on va bien finir par trouver une place. Regarde, celle-là, devant la boulangerie ?","en":"Calm down, we'll end up finding a spot. Look — that one, in front of the bakery?"},
+    {"speaker":"Julien","fr":"Mais non, c'est une place livraison, j'ai pas envie de prendre une amende... Mais c'est vraiment l'enfer pour se garer.","en":"No — that's a delivery spot, I don't feel like getting a fine... But it really is hell to park here."},
+    {"speaker":"Louise","fr":"Bon, tu sais quoi ? On va se garer dans le parking payant plus loin et on finira à pied, ça ira beaucoup plus vite !","en":"OK, you know what? We'll park in the paid lot further on and finish on foot — it'll be much faster!"}
+  ]
+},
+"cards":[
+{"id":"ep0608-01","fr":"Ça fait une demi-heure qu'on tourne en rond !","en":"We've been going in circles for half an hour!","note":"tourner en rond ; ça fait X que + présent","scene":"La galère de parking","audio":"packs/audio/ep0608-01.mp3"},
+{"id":"ep0608-02","fr":"C'est impossible de se garer ici.","en":"It's impossible to park here.","note":"se garer","scene":"La galère de parking","audio":"packs/audio/ep0608-02.mp3"},
+{"id":"ep0608-03","fr":"On va bien finir par trouver une place.","en":"We'll end up finding a spot eventually.","note":"finir par + inf. ; « bien » d'insistance","scene":"La galère de parking","audio":"packs/audio/ep0608-03.mp3"},
+{"id":"ep0608-04","fr":"J'ai pas envie de prendre une amende.","en":"I don't feel like getting a fine.","note":"prendre une amende","scene":"La galère de parking","audio":"packs/audio/ep0608-04.mp3"},
+{"id":"ep0608-05","fr":"C'est vraiment l'enfer pour se garer.","en":"It's absolute hell to park here.","note":"c'est l'enfer pour + inf.","scene":"La galère de parking","audio":"packs/audio/ep0608-05.mp3"},
+{"id":"ep0608-06","fr":"Tu sais quoi ? On finira à pied, ça ira beaucoup plus vite.","en":"You know what? We'll finish on foot — it'll be much faster.","note":"tu sais quoi ? = annonce une décision","scene":"La galère de parking","audio":"packs/audio/ep0608-06.mp3"}
+]}
