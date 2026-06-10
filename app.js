@@ -36,6 +36,7 @@ function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remo
   $('captureFab').style.display = id==='home'?'block':'none';
   if(id==='capture')renderCaptures();
   if(id==='library')renderLibrary();
+  if(id==='episodes')renderEpisodes();
   if(id==='data')renderData();
 }
 function confirmQuit(){ if(confirm('Quitter la session ?')){ go('home'); refreshHome(); } }
@@ -81,7 +82,12 @@ async function importPack(pack, opts={}){
     n++;
   }
   if(pack.episode){
-    await metaSet('episode', {packId:pack.id, ...pack.episode, date: pack.date||todayStr()});
+    const epObj = {packId:pack.id, ...pack.episode, date: pack.date||todayStr()};
+    await metaSet('episode', epObj);                 // the "today" slot
+    const lib = await metaGet('episodesAll', []);    // persistent replay library
+    const i = lib.findIndex(e=>e.packId===pack.id);
+    if(i>=0) lib[i]=epObj; else lib.push(epObj);
+    await metaSet('episodesAll', lib);
   }
   if(!imported.includes(pack.id)) imported.push(pack.id);
   await metaSet('packsImported', imported);
@@ -131,6 +137,25 @@ async function fetchRemotePacks(){
   }catch(e){ toast('Pas de packs en ligne ici ('+e.message+')'); }
   renderData(); refreshHome();
 }
+// One-time: register episodes that were imported before the replay library existed.
+async function backfillEpisodes(){
+  if(await metaGet('epLibReady', false)) return;
+  try{
+    const lib = await metaGet('episodesAll', []);
+    const have = new Set(lib.map(e=>e.packId));
+    const list = await (await fetch('packs/index.json?t='+Date.now())).json();
+    for(const f of list){
+      const id = f.replace(/\.json$/,'');
+      if(have.has(id)) continue;
+      try{
+        const p = await (await fetch('packs/'+f)).json();
+        if(p.episode) lib.push({packId:p.id, ...p.episode, date:p.date||''});
+      }catch(e){}
+    }
+    await metaSet('episodesAll', lib);
+    await metaSet('epLibReady', true);
+  }catch(e){}
+}
 
 /* ---------- audio ---------- */
 const player = ()=>$('player');
@@ -152,7 +177,7 @@ async function playAudioFor(c){
 }
 
 /* ---------- session ---------- */
-const S = { queue:[], idx:0, phase:'', current:null, shownAt:0, done:0, revDone:0, newDone:0, epDone:false, sprintScore:0 };
+const S = { queue:[], idx:0, phase:'', current:null, shownAt:0, done:0, revDone:0, newDone:0, epDone:false, sprintScore:0, replay:false };
 
 async function buildQueues(){
   const cards = await all('cards');
@@ -236,9 +261,11 @@ async function grade(g){
 }
 
 /* ---------- episode (shadow) ---------- */
-function showEpisode(){
-  const ep = S.pendingEpisode;
+function renderEpisodeScreen(ep, replay){
+  S.replay = !!replay;
   go('episode');
+  $('epPill').textContent = replay ? 'réécoute' : 'épisode du jour';
+  $('epDoneBtn').textContent = replay ? '← épisodes' : 'Fait ✓';
   $('epTitle').textContent = ep.title||'Épisode';
   const wrap = $('epLines'); wrap.innerHTML='';
   (ep.transcript||[]).forEach(l=>{
@@ -249,17 +276,133 @@ function showEpisode(){
   player().src = ep.mp3; player().load();
   $('epPlayBtn').textContent='▶ Lecture';
 }
+function showEpisode(){ renderEpisodeScreen(S.pendingEpisode, false); }
+async function playEpisodeReplay(packId){
+  const lib = await metaGet('episodesAll', []);
+  const ep = lib.find(e=>e.packId===packId);
+  if(ep) renderEpisodeScreen(ep, true);
+}
 function epToggle(){
   const p=player();
   if(p.paused){ p.play(); $('epPlayBtn').textContent='⏸ Pause'; }
   else{ p.pause(); $('epPlayBtn').textContent='▶ Lecture'; }
 }
 function epSeek(s){ try{ player().currentTime = Math.max(0, player().currentTime+s); }catch(e){} }
+function epQuit(){ if(S.replay){ player().pause(); S.replay=false; go('episodes'); } else confirmQuit(); }
 async function epDone(){
   player().pause();
+  if(S.replay){ S.replay=false; go('episodes'); return; }
   await metaSet('episodeDoneOn', todayStr());
   S.pendingEpisode=null; S.epDone=true;
   if(S.idx < S.queue.length){ go('session'); showCard(); } else maybeSprint();
+}
+async function renderEpisodes(){
+  const lib = await metaGet('episodesAll', []);
+  lib.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  $('epCount').textContent = lib.length + (lib.length===1?' épisode':' épisodes');
+  const w = $('epList'); w.innerHTML='';
+  if(!lib.length){ w.innerHTML='<p class="dim small">Aucun épisode pour l\'instant. Importe un pack d\'épisode et il apparaîtra ici.</p>'; return; }
+  lib.forEach(ep=>{
+    const n = (ep.transcript||[]).length;
+    const d = document.createElement('div'); d.className='menu-card'; d.style.cursor='pointer';
+    d.onclick = ()=>playEpisodeReplay(ep.packId);
+    d.innerHTML = `<h3>${ep.title||'Épisode'}</h3><div class="dim small">${ep.date||''}${n?` · ${n} répliques`:''}${ep.source?` · ${ep.source}`:''}</div>`;
+    w.appendChild(d);
+  });
+}
+
+/* ---------- balade (hands-free audio lesson) ---------- */
+const BAL = { ctx:null, url:null, bounds:[] };
+function encodeWav(samples, sr){
+  const n = samples.length, buf = new ArrayBuffer(44 + n*2), v = new DataView(buf);
+  const ws = (off,s)=>{ for(let i=0;i<s.length;i++) v.setUint8(off+i, s.charCodeAt(i)); };
+  ws(0,'RIFF'); v.setUint32(4,36+n*2,true); ws(8,'WAVE'); ws(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true);
+  v.setUint16(34,16,true); ws(36,'data'); v.setUint32(40,n*2,true);
+  let o=44; for(let i=0;i<n;i++){ const s=Math.max(-1,Math.min(1,samples[i])); v.setInt16(o, s<0?s*0x8000:s*0x7FFF, true); o+=2; }
+  return new Blob([buf],{type:'audio/wav'});
+}
+async function startBalade(){
+  // unlock the <audio> element inside this user gesture (iOS requirement)
+  try{ const p=player(); const u=URL.createObjectURL(encodeWav(new Float32Array(800),8000));
+       p.src=u; await p.play().catch(()=>{}); p.pause(); URL.revokeObjectURL(u); }catch(e){}
+  go('balade');
+  $('baladeEn').textContent=''; $('baladeFr').textContent='';
+  $('baladeStatus').textContent='Préparation de la balade…';
+  const cards = await all('cards'); const states = await all('state');
+  const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
+  const t = todayStr();
+  let pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && c.audio && c.en);
+  pool.sort((a,b)=>((stMap[a.id].due<=t?0:1)-(stMap[b.id].due<=t?0:1)));
+  pool = pool.slice(0,20);
+  if(!pool.length){ $('baladeStatus').textContent='Rien à réviser pour l\'instant — lance une session d\'abord.'; return; }
+  try{ await buildBaladeTrack(pool); }
+  catch(e){ $('baladeStatus').textContent='Audio indisponible — il faut redéployer pour générer les voix anglaises. ('+e.message+')'; return; }
+  $('baladeStatus').textContent = BAL.bounds.length+' phrases · écran éteint OK · ⏭ pour avancer';
+  setupBaladeMediaSession();
+  player().play(); $('baladePlayBtn').textContent='⏸';
+}
+async function decodeUrl(ctx, url){
+  const r = await fetch(url); if(!r.ok) throw new Error('404');
+  return await ctx.decodeAudioData(await r.arrayBuffer());
+}
+async function buildBaladeTrack(pool){
+  const base = await metaGet('packsBase','');
+  const resolve = a => /^https?:/.test(a) ? a : (base||'')+a;
+  const ctx = BAL.ctx = BAL.ctx || new (window.AudioContext||window.webkitAudioContext)();
+  if(ctx.state==='suspended') await ctx.resume();
+  const sr = ctx.sampleRate;
+  const silence = s => new Float32Array(Math.floor(s*sr));
+  const beep = (s,f)=>{ const n=Math.floor(s*sr), a=new Float32Array(n); for(let i=0;i<n;i++) a[i]=0.18*Math.sin(2*Math.PI*f*i/sr)*Math.exp(-3*i/n); return a; };
+  const chunks=[], bounds=[]; let total=0;
+  const push = arr => { chunks.push(arr); total += arr.length; };
+  for(const c of pool){
+    let enBuf, frBuf;
+    try{
+      enBuf = await decodeUrl(ctx, resolve(c.audio.replace(/\.mp3$/,'.en.mp3')));
+      frBuf = await decodeUrl(ctx, resolve(c.audio));
+    }catch(e){ continue; }
+    bounds.push({start: total/sr, card:c});
+    push(enBuf.getChannelData(0));
+    push(beep(0.12,880));
+    push(silence(Math.max(3.5, frBuf.duration+2)));   // your turn to say it
+    push(frBuf.getChannelData(0));
+    push(silence(1.3));
+  }
+  if(!bounds.length) throw new Error('aucun clip');
+  const data = new Float32Array(total); let o=0;
+  for(const ch of chunks){ data.set(ch,o); o+=ch.length; }
+  if(BAL.url) URL.revokeObjectURL(BAL.url);
+  BAL.url = URL.createObjectURL(encodeWav(data, sr));
+  BAL.bounds = bounds;
+  const p = player();
+  p.src = BAL.url; p.load();
+  p.ontimeupdate = baladeSync;
+  p.onended = ()=>{ $('baladePlayBtn').textContent='▶'; };
+}
+function baladeSync(){
+  const t = player().currentTime; let cur = BAL.bounds[0];
+  for(const b of BAL.bounds){ if(b.start <= t+0.05) cur=b; else break; }
+  if(cur && cur.card && $('baladeFr').textContent!==cur.card.fr){
+    $('baladeEn').textContent = cur.card.en||'';
+    $('baladeFr').textContent = cur.card.fr||'';
+  }
+}
+function baladeIdx(){ const t=player().currentTime; let i=0; for(let k=0;k<BAL.bounds.length;k++){ if(BAL.bounds[k].start<=t+0.05) i=k; else break; } return i; }
+function baladeSeek(i){ const b=BAL.bounds[Math.max(0,Math.min(i,BAL.bounds.length-1))]; if(b){ player().currentTime=b.start+0.01; } }
+function baladeNext(){ baladeSeek(baladeIdx()+1); }
+function baladePrev(){ baladeSeek(baladeIdx()-1); }
+function baladeToggle(){ const p=player(); if(p.paused){ p.play(); $('baladePlayBtn').textContent='⏸'; } else { p.pause(); $('baladePlayBtn').textContent='▶'; } }
+function baladeQuit(){ const p=player(); p.pause(); p.ontimeupdate=null; p.onended=null; go('home'); refreshHome(); }
+function setupBaladeMediaSession(){
+  if(!('mediaSession' in navigator)) return;
+  try{ navigator.mediaSession.metadata = new MediaMetadata({title:'Balade Revanche', artist:'Perfect French', album:'Révisions mains libres'}); }catch(e){}
+  const set=(a,h)=>{ try{ navigator.mediaSession.setActionHandler(a,h); }catch(e){} };
+  set('play', ()=>baladeToggle());
+  set('pause', ()=>baladeToggle());
+  set('nexttrack', ()=>baladeNext());
+  set('previoustrack', ()=>baladePrev());
 }
 
 /* ---------- sprint ---------- */
@@ -493,6 +636,7 @@ async function restoreBackup(inp){
   await openDB();
   await refreshHome();
   // auto-check for new packs (silent) when online & hosted
-  if(navigator.onLine){ fetch('packs/index.json',{method:'HEAD'}).then(r=>{ if(r.ok) fetchRemotePacks(); }).catch(()=>{}); }
+  if(navigator.onLine){ fetch('packs/index.json',{method:'HEAD'}).then(async r=>{ if(r.ok){ await fetchRemotePacks(); } await backfillEpisodes(); }).catch(()=>{}); }
+  else { backfillEpisodes(); }
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 })();

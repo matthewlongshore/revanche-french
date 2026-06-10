@@ -1,0 +1,21 @@
+{
+"id":"ep-2026-06-07-course","title":"La course de Julien","type":"episode","date":"2026-06-07",
+"episode":{
+  "title":"La course de Julien 🏃",
+  "mp3":"https://open.acast.com/public/streams/660691ed8268a800165f2bdd/episodes/6a243de3ebd8b0fa7396f1f0.mp3",
+  "source":"Real Life French — Choses à Savoir",
+  "transcript":[
+    {"speaker":"Julien","fr":"Ça y est, je me suis inscrit pour la course des 10 kilomètres de la ville le mois prochain.","en":"That's it — I signed up for the city's 10K next month."},
+    {"speaker":"Louise","fr":"Quoi ? Mais tu n'as pas couru depuis des années, tu manques d'entraînement !","en":"What? But you haven't run in years — you're way out of training!"},
+    {"speaker":"Julien","fr":"Je sais, mais j'ai envie de me remettre au sport. J'ai même acheté de nouvelles baskets.","en":"I know, but I feel like getting back into sport. I even bought new trainers."},
+    {"speaker":"Louise","fr":"C'est une super initiative... Mais promets-moi de commencer par un petit footing pour ne pas finir à l'hôpital dès demain !","en":"It's a great move... But promise me you'll start with an easy jog so you don't end up in hospital by tomorrow!"}
+  ]
+},
+"cards":[
+{"id":"ep0607-01","fr":"Ça y est, je me suis inscrit pour la course !","en":"That's it — I signed up for the race!","note":"« ça y est » = enfin / voilà ; s'inscrire à / pour qqch","scene":"La course de Julien","audio":"packs/audio/ep0607-01.mp3"},
+{"id":"ep0607-02","fr":"Tu n'as pas couru depuis des années !","en":"You haven't run in years!","note":"négation + passé composé + « depuis des années »","scene":"La course de Julien","audio":"packs/audio/ep0607-02.mp3"},
+{"id":"ep0607-03","fr":"Tu manques d'entraînement.","en":"You're out of practice / undertrained.","note":"manquer DE + nom (sans article)","scene":"La course de Julien","audio":"packs/audio/ep0607-03.mp3"},
+{"id":"ep0607-04","fr":"J'ai envie de me remettre au sport.","en":"I feel like getting back into sport.","note":"avoir envie DE + infinitif ; se remettre À qqch","scene":"La course de Julien","audio":"packs/audio/ep0607-04.mp3"},
+{"id":"ep0607-05","fr":"J'ai même acheté de nouvelles baskets.","en":"I even bought new trainers.","note":"« de » (pas « des ») devant adj. pluriel ; des baskets = sneakers","scene":"La course de Julien","audio":"packs/audio/ep0607-05.mp3"},
+{"id":"ep0607-06","fr":"Promets-moi de commencer par un petit footing.","en":"Promise me you'll start with an easy jog.","note":"commencer PAR qqch ; un footing = petite course tranquille","scene":"La course de Julien","audio":"packs/audio/ep0607-06.mp3"}
+]}

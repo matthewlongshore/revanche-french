@@ -19,22 +19,30 @@ jobs:
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
           pip install piper-tts
-      - name: Cache voice model
+      - name: Cache voice models
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/voices
-          key: piper-voice-fr-siwis-medium-v1
-      - name: Download French voice model
+          key: piper-voices-fr-siwis-en-amy-v1
+      - name: Download voice models (French + English)
         run: |
-          mkdir -p "${{ runner.temp }}/voices"
-          if [ ! -f "${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx" ]; then
-            base="https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium"
-            curl -fL -o "${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx"      "$base/fr_FR-siwis-medium.onnx"
-            curl -fL -o "${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx.json" "$base/fr_FR-siwis-medium.onnx.json"
+          V="${{ runner.temp }}/voices"
+          mkdir -p "$V"
+          hf="https://huggingface.co/rhasspy/piper-voices/resolve/main"
+          if [ ! -f "$V/fr_FR-siwis-medium.onnx" ]; then
+            fr="$hf/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx"
+            curl -fL -o "$V/fr_FR-siwis-medium.onnx"      "$fr"
+            curl -fL -o "$V/fr_FR-siwis-medium.onnx.json" "$fr.json"
           fi
-      - name: Generate sentence audio
+          if [ ! -f "$V/en_US-amy-medium.onnx" ]; then
+            en="$hf/en/en_US/amy/medium/en_US-amy-medium.onnx"
+            curl -fL -o "$V/en_US-amy-medium.onnx"      "$en"
+            curl -fL -o "$V/en_US-amy-medium.onnx.json" "$en.json"
+          fi
+      - name: Generate sentence audio (FR + EN)
         env:
           PIPER_VOICE: ${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx
+          PIPER_VOICE_EN: ${{ runner.temp }}/voices/en_US-amy-medium.onnx
         run: python pipeline/generate_audio.py
       - name: Cache generated audio between runs
         uses: actions/cache@v4

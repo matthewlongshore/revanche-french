@@ -1,5 +1,5 @@
 /* Revanche service worker — offline app shell + runtime audio cache */
-const SHELL = 'revanche-shell-v1';
+const SHELL = 'revanche-shell-v3';
 const RUNTIME = 'revanche-runtime-v1';
 const SHELL_FILES = ['./','index.html','app.js','manifest.json','icon-180.png','icon-512.png'];
 

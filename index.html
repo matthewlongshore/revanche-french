@@ -121,6 +121,8 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
     <button class="btn-big btn-red" onclick="startSession()">C'est parti →</button>
     <div style="height:14px"></div>
     <div class="menu-card" onclick="go('library')"><h3>📚 Ton arsenal</h3><div class="dim small" id="libSummary">…</div></div>
+    <div class="menu-card" onclick="go('episodes')"><h3>🎧 Les épisodes</h3><div class="dim small" id="epSummary">Réécoute n'importe quel épisode, autant de fois que tu veux</div></div>
+    <div class="menu-card" onclick="startBalade()"><h3>🚶 Mode balade</h3><div class="dim small">Mains libres : écoute l'anglais, dis le français, écoute la correction. Écran éteint OK — parfait en marchant.</div></div>
     <div class="menu-card" onclick="startSprintOnly()"><h3>⚡ Sprint express</h3><div class="dim small">2 minutes, juste la vitesse. Record : <span id="bestSprint">—</span></div></div>
     <div class="menu-card" onclick="go('capture')"><h3>🎙 File de capture</h3><div class="dim small" id="capSummary">Rien en attente</div></div>
     <button id="captureFab" onclick="go('capture')">🎙</button>
@@ -157,8 +159,8 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
   <!-- EPISODE (shadow mode) -->
   <section id="episode" class="screen">
     <div class="topbar">
-      <button class="back" onclick="confirmQuit()">✕ quitter</button>
-      <span class="pill">épisode du jour</span>
+      <button class="back" onclick="epQuit()">✕ quitter</button>
+      <span class="pill" id="epPill">épisode du jour</span>
     </div>
     <div class="phase-tag">LA MISSION</div>
     <h2 id="epTitle"></h2>
@@ -168,7 +170,37 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
       <button onclick="epSeek(-5)">−5s</button>
       <button id="epPlayBtn" class="btn-red" onclick="epToggle()">▶ Lecture</button>
       <button onclick="epSeek(5)">+5s</button>
-      <button onclick="epDone()" style="flex:.7">Fait ✓</button>
+      <button id="epDoneBtn" onclick="epDone()" style="flex:.7">Fait ✓</button>
+    </div>
+  </section>
+
+  <!-- EPISODES (replay library) -->
+  <section id="episodes" class="screen">
+    <div class="topbar">
+      <button class="back" onclick="go('home')">← retour</button>
+      <span class="pill" id="epCount"></span>
+    </div>
+    <h2>Les épisodes</h2>
+    <p class="dim small" style="margin-bottom:14px">Réécoute et shadow n'importe quel épisode, autant de fois que tu veux.</p>
+    <div id="epList" style="flex:1;overflow-y:auto"></div>
+  </section>
+
+  <!-- BALADE (hands-free audio lesson) -->
+  <section id="balade" class="screen">
+    <div class="topbar">
+      <button class="back" onclick="baladeQuit()">✕ quitter</button>
+      <span class="pill">mains libres</span>
+    </div>
+    <div class="phase-tag">BALADE</div>
+    <div id="baladeStatus" class="dim small" style="margin:10px 0"></div>
+    <div id="baladeNow" style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:16px">
+      <div id="baladeEn" class="prompt-en"></div>
+      <div id="baladeFr" class="prompt-fr"></div>
+    </div>
+    <div class="ep-controls">
+      <button onclick="baladePrev()">⏮ phrase</button>
+      <button id="baladePlayBtn" class="btn-red" onclick="baladeToggle()">▶</button>
+      <button onclick="baladeNext()">phrase ⏭</button>
     </div>
   </section>
 
