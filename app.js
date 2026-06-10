@@ -179,7 +179,7 @@ async function playAudioFor(c){
 /* ---------- session ---------- */
 const S = { queue:[], idx:0, phase:'', current:null, shownAt:0, done:0, revDone:0, newDone:0, epDone:false, sprintScore:0, replay:false };
 
-async function buildQueues(){
+async function buildQueues(opts={}){
   const cards = await all('cards');
   const states = await all('state');
   const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
@@ -193,8 +193,10 @@ async function buildQueues(){
     else fresh.push(c);
   }
   fresh.sort((a,b)=>(stMap[a.id].order||0)-(stMap[b.id].order||0));
-  const introducedToday = await metaGet('introducedOn_'+t, 0);
-  const news = fresh.slice(0, Math.max(0, npd - introducedToday));
+  let news;
+  if(opts.more){ news = fresh.slice(0, opts.more); }          // bonus round: ignore daily cap
+  else { const introducedToday = await metaGet('introducedOn_'+t, 0);
+         news = fresh.slice(0, Math.max(0, npd - introducedToday)); }
   return {rev, review:shuffle(review), news, stMap};
 }
 
@@ -210,6 +212,15 @@ async function startSession(){
   if(S.queue.length===0 && !S.pendingEpisode){ toast('Rien à régler aujourd\'hui. Capture quelque chose !'); return; }
   // episode goes after revanche cards, before the rest
   if(S.pendingEpisode && rev.length===0){ showEpisode(); return; }
+  go('session'); showCard();
+}
+// "Encore" — keep going past today's limit with a bonus batch of new + any due cards
+async function moreSession(){
+  const {review, news} = await buildQueues({more:10});
+  S.queue = [...review.map(c=>({c,phase:'RÈGLEMENT DE COMPTES'})),
+             ...news.map(c=>({c,phase:'SANG NEUF'}))];
+  S.idx=0; S.done=0; S.revDone=0; S.newDone=0; S.pendingEpisode=null;
+  if(S.queue.length===0){ toast('Bravo — tu as épuisé toutes les phrases disponibles ! Capture-en de nouvelles 🎙'); go('home'); refreshHome(); return; }
   go('session'); showCard();
 }
 function showCard(){
@@ -335,7 +346,7 @@ async function startBalade(){
   const t = todayStr();
   let pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && c.audio && c.en);
   pool.sort((a,b)=>((stMap[a.id].due<=t?0:1)-(stMap[b.id].due<=t?0:1)));
-  pool = pool.slice(0,20);
+  pool = pool.slice(0,40);   // ~10+ min with the French said twice
   if(!pool.length){ $('baladeStatus').textContent='Rien à réviser pour l\'instant — lance une session d\'abord.'; return; }
   try{ await buildBaladeTrack(pool); }
   catch(e){ $('baladeStatus').textContent='Audio indisponible — il faut redéployer pour générer les voix anglaises. ('+e.message+')'; return; }
@@ -367,8 +378,10 @@ async function buildBaladeTrack(pool){
     push(enBuf.getChannelData(0));
     push(beep(0.12,880));
     push(silence(Math.max(3.5, frBuf.duration+2)));   // your turn to say it
-    push(frBuf.getChannelData(0));
-    push(silence(1.3));
+    push(frBuf.getChannelData(0));                     // the answer
+    push(silence(1.2));                                // breath
+    push(frBuf.getChannelData(0));                     // said twice — drill it
+    push(silence(3));                                  // longer pause before next
   }
   if(!bounds.length) throw new Error('aucun clip');
   const data = new Float32Array(total); let o=0;

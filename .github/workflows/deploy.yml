@@ -23,7 +23,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/voices
-          key: piper-voices-fr-siwis-en-amy-v1
+          key: piper-voices-fr-siwis-en-ryan-high-v1
       - name: Download voice models (French + English)
         run: |
           V="${{ runner.temp }}/voices"
@@ -34,22 +34,23 @@ jobs:
             curl -fL -o "$V/fr_FR-siwis-medium.onnx"      "$fr"
             curl -fL -o "$V/fr_FR-siwis-medium.onnx.json" "$fr.json"
           fi
-          if [ ! -f "$V/en_US-amy-medium.onnx" ]; then
-            en="$hf/en/en_US/amy/medium/en_US-amy-medium.onnx"
-            curl -fL -o "$V/en_US-amy-medium.onnx"      "$en"
-            curl -fL -o "$V/en_US-amy-medium.onnx.json" "$en.json"
+          if [ ! -f "$V/en_US-ryan-high.onnx" ]; then
+            en="$hf/en/en_US/ryan/high/en_US-ryan-high.onnx"
+            curl -fL -o "$V/en_US-ryan-high.onnx"      "$en"
+            curl -fL -o "$V/en_US-ryan-high.onnx.json" "$en.json"
           fi
       - name: Generate sentence audio (FR + EN)
+        continue-on-error: true   # never let an audio hiccup block the app deploy
         env:
           PIPER_VOICE: ${{ runner.temp }}/voices/fr_FR-siwis-medium.onnx
-          PIPER_VOICE_EN: ${{ runner.temp }}/voices/en_US-amy-medium.onnx
+          PIPER_VOICE_EN: ${{ runner.temp }}/voices/en_US-ryan-high.onnx
         run: python pipeline/generate_audio.py
       - name: Cache generated audio between runs
         uses: actions/cache@v4
         with:
           path: packs/audio
-          key: revanche-audio-${{ hashFiles('packs/*.json') }}
-          restore-keys: revanche-audio-
+          key: revanche-audio-ryanhigh-${{ hashFiles('packs/*.json') }}
+          restore-keys: revanche-audio-ryanhigh-
       - uses: actions/upload-pages-artifact@v3
         with: { path: "." }
       - uses: actions/deploy-pages@v4
