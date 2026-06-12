@@ -209,7 +209,8 @@ async function startSession(){
              ...news.map(c=>({c,phase:'SANG NEUF'}))];
   S.idx=0; S.done=0; S.revDone=0; S.newDone=0;
   S.pendingEpisode = (ep && epDoneOn!==todayStr()) ? ep : null;
-  if(S.queue.length===0 && !S.pendingEpisode){ toast('Rien à régler aujourd\'hui. Capture quelque chose !'); return; }
+  // nothing due and no episode → jump straight into a bonus round of new cards
+  if(S.queue.length===0 && !S.pendingEpisode){ moreSession(); return; }
   // episode goes after revanche cards, before the rest
   if(S.pendingEpisode && rev.length===0){ showEpisode(); return; }
   go('session'); showCard();
@@ -552,18 +553,42 @@ async function renderCaptures(){
 async function exportCaptures(){
   const caps = await all('captures');
   if(!caps.length){ toast('Rien à envoyer'); return; }
+  // Drive pipe: if a sync URL is configured, post new captures straight to your Drive
+  const syncUrl = await metaGet('captureSyncUrl','');
+  if(syncUrl){
+    const pending = caps.filter(c=>!c.synced);
+    if(!pending.length){ toast('Tout est déjà synchronisé ✓'); return; }
+    const payload = { captures: pending.map(c=>({date:c.date, text:c.text||'', audio: !!c.audio})) };
+    try{
+      await fetch(syncUrl, {method:'POST', mode:'no-cors',
+        headers:{'Content-Type':'text/plain;charset=UTF-8'}, body: JSON.stringify(payload)});
+      for(const c of pending){ c.synced=true; await put('captures', c); }
+      toast('Déposé dans ton Drive ✓ — dis « process my captures » à Claude');
+      renderCaptures();
+      return;
+    }catch(e){ toast('Sync échouée — j\'ouvre le partage…'); }
+  }
   const lines = caps.map(c=>`- [${c.date.slice(0,10)}] ${c.text||'(voir audio joint)'}`).join('\n');
   const msg = `Salut Claude — voici mes captures Revanche à transformer en cartes :\n${lines}\n\nFais-en un pack JSON avec audio, s'il te plaît.`;
   const files = caps.filter(c=>c.audio).map((c,i)=>{
     const ext = (c.mime||'').includes('mp4')?'m4a':'webm';
     return new File([c.audio], `capture-${c.date.slice(0,10)}-${i+1}.${ext}`, {type:c.mime||'audio/webm'});
   });
+  const dl = f=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=f.name; a.click(); };
+  // 1) Native share WITH audio attachments (AirDrop / Mail / Messages / Notes)
   if(navigator.canShare && files.length && navigator.canShare({files})){
-    try{ await navigator.share({text:msg, files}); toast('Partagé !'); return; }catch(e){}
+    try{ await navigator.share({title:'Captures Revanche', text:msg, files}); return; }
+    catch(e){ if(e.name==='AbortError') return; }
   }
-  // fallback: clipboard + individual downloads
-  try{ await navigator.clipboard.writeText(msg); toast('Texte copié — colle-le à Claude'+(files.length?' (audios téléchargés)':'')); }catch(e){}
-  files.forEach(f=>{ const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click(); });
+  // 2) Native share text-only — opens the iOS share sheet so you can pick Mail, Notes, etc.
+  if(navigator.share){
+    try{ await navigator.share({title:'Captures Revanche', text:msg}); if(files.length) files.forEach(dl); return; }
+    catch(e){ if(e.name==='AbortError') return; }
+  }
+  // 3) No share API (e.g. desktop) → copy to clipboard, open an email draft, download any audio
+  try{ await navigator.clipboard.writeText(msg); toast('Copié — colle-le à Claude'); }catch(e){}
+  location.href = 'mailto:?subject='+encodeURIComponent('Captures Revanche')+'&body='+encodeURIComponent(msg);
+  files.forEach(dl);
 }
 
 /* ---------- library ---------- */
@@ -620,9 +645,11 @@ async function renderData(){
   const imported = await metaGet('packsImported',[]);
   const cards = await all('cards');
   $('npdNow').textContent = await metaGet('newPerDay',12);
+  $('syncUrl').value = await metaGet('captureSyncUrl','');
   $('dataInfo').textContent = `${imported.length} packs importés · ${cards.length} phrases · v1`;
 }
 async function setNewPerDay(n){ await metaSet('newPerDay',n); $('npdNow').textContent=n; toast(n+' nouvelles par jour'); }
+async function saveSyncUrl(){ const u=($('syncUrl').value||'').trim(); await metaSet('captureSyncUrl',u); toast(u?'Sync Drive activé ✓':'Sync désactivé'); }
 
 /* ---------- backup ---------- */
 async function exportBackup(){

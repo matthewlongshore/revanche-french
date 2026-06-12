@@ -304,6 +304,10 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
       <button class="btn-ghost" onclick="setNewPerDay(18)">18</button>
     </div>
     <p class="dim small" style="margin-top:8px">Actuel : <span id="npdNow">12</span></p>
+    <h2 style="margin-top:26px">Sync des captures</h2>
+    <p class="dim small">Colle l'URL de ton endpoint de capture (Convex, finit par <code>/capture</code>). « Envoyer à Claude » y dépose tes captures, puis le build du matin en fait des cartes.</p>
+    <input type="text" id="syncUrl" placeholder="https://….convex.site/capture">
+    <div class="btn-row" style="margin-top:8px"><button onclick="saveSyncUrl()">Enregistrer l'URL</button></div>
     <p class="dim small" style="margin-top:26px" id="dataInfo"></p>
   </section>
 

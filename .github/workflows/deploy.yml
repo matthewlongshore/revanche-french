@@ -2,9 +2,11 @@ name: Build audio & deploy Revanche
 on:
   push: { branches: [main] }
   workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 — Dakar is UTC+0, so this is 6 AM local.
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -13,6 +15,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # On scheduled/manual runs, turn new captures (from Convex) into a pack and commit it.
+      - name: Process new captures → pack
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          CONVEX_URL: ${{ secrets.CONVEX_URL }}
+          CAPTURE_SECRET: ${{ secrets.CAPTURE_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/build-captures-pack.mjs
+      - name: Commit new pack (if any)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          if ! git diff --quiet -- packs; then
+            git config user.name  "revanche-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git add packs
+            git commit -m "Auto: captures → pack ($(date -u +%F))"
+            git push
+          else
+            echo "No new captures to commit."
+          fi
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Install Piper + ffmpeg
