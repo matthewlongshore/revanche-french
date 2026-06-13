@@ -556,17 +556,27 @@ async function exportCaptures(){
   // Drive pipe: if a sync URL is configured, post new captures straight to your Drive
   const syncUrl = await metaGet('captureSyncUrl','');
   if(syncUrl){
-    const pending = caps.filter(c=>!c.synced);
-    if(!pending.length){ toast('Tout est déjà synchronisé ✓'); return; }
-    const payload = { captures: pending.map(c=>({date:c.date, text:c.text||'', audio: !!c.audio})) };
+    // build payload, base64-encoding any voice recordings so they ride along
+    const toB64 = blob => new Promise((res2,rej)=>{ const r=new FileReader(); r.onload=()=>res2(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('lecture audio')); r.readAsDataURL(blob); });
+    const payloadCaps = [];
+    for(const c of caps){
+      const item = { date:c.date, text:c.text||'' };
+      if(c.audio){ try{ item.audioBase64 = await toB64(c.audio); item.mime = c.mime || c.audio.type || 'audio/mp4'; }catch(e){} }
+      payloadCaps.push(item);
+    }
+    const payload = { captures: payloadCaps };
     try{
-      await fetch(syncUrl, {method:'POST', mode:'no-cors',
-        headers:{'Content-Type':'text/plain;charset=UTF-8'}, body: JSON.stringify(payload)});
-      for(const c of pending){ c.synced=true; await put('captures', c); }
-      toast('Déposé dans ton Drive ✓ — dis « process my captures » à Claude');
-      renderCaptures();
+      // real (CORS) request so we can read the response and only delete on confirmed success
+      const res = await fetch(syncUrl, {method:'POST',
+        headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const data = await res.json().catch(()=>({}));
+      if(data && data.ok===false) throw new Error('refus du serveur');
+      for(const c of caps){ await del('captures', c.id); }   // confirmed sent → clear the queue
+      toast(`Envoyé ✓ — ${caps.length} capture(s) confirmées. Cartes prêtes demain matin.`);
+      renderCaptures(); refreshHome();
       return;
-    }catch(e){ toast('Sync échouée — j\'ouvre le partage…'); }
+    }catch(e){ toast('Envoi échoué ('+e.message+') — file gardée, j\'ouvre le partage…'); }
   }
   const lines = caps.map(c=>`- [${c.date.slice(0,10)}] ${c.text||'(voir audio joint)'}`).join('\n');
   const msg = `Salut Claude — voici mes captures Revanche à transformer en cartes :\n${lines}\n\nFais-en un pack JSON avec audio, s'il te plaît.`;

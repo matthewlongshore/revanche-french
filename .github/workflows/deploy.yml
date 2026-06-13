@@ -23,6 +23,11 @@ jobs:
           CAPTURE_SECRET: ${{ secrets.CAPTURE_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node scripts/build-captures-pack.mjs
+      - name: Mine latest podcast episode → pack
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/build-episode-pack.mjs
       - name: Commit new pack (if any)
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
