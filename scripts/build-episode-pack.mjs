@@ -1,20 +1,20 @@
 // Morning build step: mine the latest "Real Life French" podcast episode into a pack.
-// Fetches the RSS feed, asks Gemini to split the dialogue into a transcript + a handful
+// Fetches the RSS feed, asks Groq (Llama) to split the dialogue into a transcript + a handful
 // of study cards, and writes an episode pack — but only if that episode isn't already mined.
 //
-// Env: GEMINI_API_KEY (required). Optional: GEMINI_MODEL, PODCAST_FEED.
+// Env: GROQ_API_KEY (required). Optional: GROQ_MODEL, PODCAST_FEED.
 // Exits 0 (no-op) on any problem or when there's no new episode, so it never breaks the deploy.
 
 import fs from "node:fs";
 import path from "node:path";
 
-const { GEMINI_API_KEY } = process.env;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const { GROQ_API_KEY } = process.env;
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 const FEED = process.env.PODCAST_FEED || "https://feeds.acast.com/public/shows/real-life-french";
 const SOURCE = "Real Life French — Choses à Savoir";
 const PACKS = path.resolve("packs");
 
-if (!GEMINI_API_KEY) { console.log("No GEMINI_API_KEY — skipping episode."); process.exit(0); }
+if (!GROQ_API_KEY) { console.log("No GROQ_API_KEY — skipping episode."); process.exit(0); }
 
 const stripCdata = (s = "") => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
 const decodeHtml = (s = "") =>
@@ -62,7 +62,7 @@ if (!/[A-Za-zÀ-ÿ]+\s*:/.test(dialogue) && link) {
 }
 if (!dialogue || dialogue.length < 20) { console.log("No usable dialogue — skipping."); process.exit(0); }
 
-// --- Gemini: transcript + cards ---
+// --- Groq (Llama): transcript + cards ---
 const prompt =
   `You are a French tutor building a study pack from a short French podcast dialogue.\n` +
   `Episode title: "${title}".\nDialogue:\n${dialogue}\n\n` +
@@ -74,18 +74,20 @@ const prompt =
 
 let out;
 try {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-    { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4, responseMimeType: "application/json" } }) }
-  );
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      temperature: 0.4,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  let txt = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-  txt = txt.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  out = JSON.parse(txt);
-} catch (e) { console.log("Gemini failed:", e.message, "— skipping episode."); process.exit(0); }
+  out = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+} catch (e) { console.log("Groq failed:", e.message, "— skipping episode."); process.exit(0); }
 
 const mmdd = date.slice(5).replace("-", "");
 const cards = (out.cards || []).filter((c) => c && c.fr).map((c, i) => {
