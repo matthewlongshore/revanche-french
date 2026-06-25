@@ -77,7 +77,8 @@ async function importPack(pack, opts={}){
     if(!existing){
       await put('state', {cardId:c.id, level:0, due:todayStr(), reps:0, lapses:0,
         introduced: !!c.isPersonal,          // personal cards jump the queue
-        order: n + (pack.order||0)});
+        order: n + (pack.order||0),
+        addedOn: todayStr()});
     }
     n++;
   }
@@ -346,7 +347,15 @@ async function startBalade(){
   const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
   const t = todayStr();
   let pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && c.audio && c.en);
-  pool.sort((a,b)=>((stMap[a.id].due<=t?0:1)-(stMap[b.id].due<=t?0:1)));
+  pool.sort((a,b)=>{
+    const aDue = stMap[a.id].due<=t ? 0 : 1;
+    const bDue = stMap[b.id].due<=t ? 0 : 1;
+    if(aDue !== bDue) return aDue - bDue;
+    // within each group: newest addedOn first (cards without addedOn sort last)
+    const aDate = stMap[a.id].addedOn || '';
+    const bDate = stMap[b.id].addedOn || '';
+    return bDate.localeCompare(aDate);
+  });
   pool = pool.slice(0,40);   // ~10+ min with the French said twice
   if(!pool.length){ $('baladeStatus').textContent='Rien à réviser pour l\'instant — lance une session d\'abord.'; return; }
   try{ await buildBaladeTrack(pool); }
