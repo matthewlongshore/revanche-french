@@ -20,7 +20,8 @@ import path from "node:path";
 const { CONVEX_URL, CAPTURE_SECRET, GROQ_API_KEY } = process.env;
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 const GROQ_STT_MODEL = process.env.GROQ_STT_MODEL || "whisper-large-v3";
-const CAPTURE_USER = (process.env.CAPTURE_USER || "").trim().toLowerCase(); // e.g. "matt" or "carolina"
+const CAPTURE_USER = (process.env.CAPTURE_USER || "").trim(); // e.g. "Matthew" or "Carolina"
+const CAPTURE_USER_SLUG = CAPTURE_USER.toLowerCase(); // for filenames
 const PACKS = path.resolve("packs");
 
 if (!CONVEX_URL || !CAPTURE_SECRET || !GROQ_API_KEY) {
@@ -118,7 +119,7 @@ if (built.length === 0) {
 // --- 3) write pack + index ---
 const today = new Date().toISOString().slice(0, 10);
 const mmdd = today.slice(5).replace("-", "");
-const userSuffix = CAPTURE_USER ? `-${CAPTURE_USER}` : "";
+const userSuffix = CAPTURE_USER_SLUG ? `-${CAPTURE_USER_SLUG}` : "";
 let id = `cap-${today}${userSuffix}`, file = `${id}.json`, n = 2;
 while (fs.existsSync(path.join(PACKS, file))) { id = `cap-${today}${userSuffix}-${n}`; file = `${id}.json`; n++; }
 
