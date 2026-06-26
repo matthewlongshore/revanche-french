@@ -69,8 +69,8 @@ const prompt =
   `Return ONLY JSON: {"transcript":[{"speaker","fr","en"}],"cards":[{"fr","en","note"}]}.\n` +
   `transcript = the dialogue split into speaker turns, each with a short English gloss "en".\n` +
   `cards = 5 to 7 of the most useful, idiomatic sentences/expressions a learner should own, ` +
-  `each a clean natural standalone French sentence with a short English gloss and a brief ` +
-  `usage/grammar note.`;
+  `each a COMPLETE grammatically-correct standalone French sentence (not a fragment or phrase) ` +
+  `ending with proper punctuation (. ! ? …), with a short English gloss and a brief usage/grammar note.`;
 
 let out;
 try {
@@ -90,7 +90,7 @@ try {
 } catch (e) { console.log("Groq failed:", e.message, "— skipping episode."); process.exit(0); }
 
 const mmdd = date.slice(5).replace("-", "");
-const cards = (out.cards || []).filter((c) => c && c.fr).map((c, i) => {
+const cards = (out.cards || []).filter((c) => c && c.fr && /[.!?…»]$/.test(c.fr.trim())).map((c, i) => {
   const cid = `ep${mmdd}-${String(i + 1).padStart(2, "0")}`;
   return { id: cid, fr: c.fr, en: c.en || "", note: c.note || "", scene: title,
            audio: `packs/audio/${cid}.mp3` };

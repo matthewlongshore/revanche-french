@@ -346,7 +346,8 @@ async function startBalade(){
   const cards = await all('cards'); const states = await all('state');
   const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
   const t = todayStr();
-  let pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && c.audio && c.en);
+  const _fullSentence = fr => /[.!?…»]$/.test((fr||'').trim());
+  let pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && c.audio && c.en && _fullSentence(c.fr));
   pool.sort((a,b)=>{
     const aDue = stMap[a.id].due<=t ? 0 : 1;
     const bDue = stMap[b.id].due<=t ? 0 : 1;
@@ -356,6 +357,9 @@ async function startBalade(){
     const bDate = stMap[b.id].addedOn || '';
     return bDate.localeCompare(aDate);
   });
+  // dedup by French text (same phrase can appear in multiple packs)
+  const _seenFr = new Set();
+  pool = pool.filter(c=>{ if(_seenFr.has(c.fr)) return false; _seenFr.add(c.fr); return true; });
   pool = pool.slice(0,40);   // ~10+ min with the French said twice
   if(!pool.length){ $('baladeStatus').textContent='Rien à réviser pour l\'instant — lance une session d\'abord.'; return; }
   try{ await buildBaladeTrack(pool); }
@@ -559,21 +563,43 @@ async function renderCaptures(){
     $('capList').appendChild(d);
   });
 }
+async function buildCapturePayload(caps, userName){
+  const toB64 = blob => new Promise((res2,rej)=>{ const r=new FileReader(); r.onload=()=>res2(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('lecture audio')); r.readAsDataURL(blob); });
+  const payloadCaps = [];
+  for(const c of caps){
+    const item = { date:c.date, text:c.text||'', user: userName||'' };
+    if(c.audio){ try{ item.audioBase64 = await toB64(c.audio); item.mime = c.mime || c.audio.type || 'audio/mp4'; }catch(e){} }
+    payloadCaps.push(item);
+  }
+  return { captures: payloadCaps };
+}
+async function silentSyncCaptures(){
+  const syncUrl = await metaGet('captureSyncUrl','');
+  if(!syncUrl || !navigator.onLine) return;
+  const caps = await all('captures');
+  if(!caps.length) return;
+  const userName = await metaGet('userName','');
+  try{
+    const payload = await buildCapturePayload(caps, userName);
+    const res = await fetch(syncUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json().catch(()=>({}));
+    if(data && data.ok===false) throw new Error('refus');
+    for(const c of caps) await del('captures', c.id);
+    toast(`Captures envoyées ✓ (${caps.length})`);
+    renderCaptures(); refreshHome();
+  }catch(e){ /* silent — will retry next time online */ }
+}
+window.addEventListener('online', silentSyncCaptures);
 async function exportCaptures(){
   const caps = await all('captures');
   if(!caps.length){ toast('Rien à envoyer'); return; }
-  // Drive pipe: if a sync URL is configured, post new captures straight to your Drive
+  const userName = await metaGet('userName','');
+  if(!userName){ toast('Entre ton prénom dans les réglages d\'abord'); go('data'); return; }
+  // Drive pipe: if a sync URL is configured, post new captures straight to Convex
   const syncUrl = await metaGet('captureSyncUrl','');
   if(syncUrl){
-    // build payload, base64-encoding any voice recordings so they ride along
-    const toB64 = blob => new Promise((res2,rej)=>{ const r=new FileReader(); r.onload=()=>res2(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('lecture audio')); r.readAsDataURL(blob); });
-    const payloadCaps = [];
-    for(const c of caps){
-      const item = { date:c.date, text:c.text||'' };
-      if(c.audio){ try{ item.audioBase64 = await toB64(c.audio); item.mime = c.mime || c.audio.type || 'audio/mp4'; }catch(e){} }
-      payloadCaps.push(item);
-    }
-    const payload = { captures: payloadCaps };
+    const payload = await buildCapturePayload(caps, userName);
     try{
       // real (CORS) request so we can read the response and only delete on confirmed success
       const res = await fetch(syncUrl, {method:'POST',
@@ -623,9 +649,18 @@ async function renderLibrary(){
     const d=document.createElement('div'); d.className='lib-card';
     const lvl = st.level>=OWNED_LVL?'<span class="lvl owned">👑 possédée</span>':'<span class="lvl">niv. '+st.level+'</span>';
     const trophy = c.isPersonal? `<button class="trophy-btn" title="Utilisée en vrai !" onclick="claimTrophy('${c.id}',event)">${st.trophy?'🏆':'🎯'}</button>`:'';
-    d.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px"><div><div class="fr">${c.fr}</div><div class="en">${c.en||''}</div>${lvl} <span class="dim small">${c.scene||''}</span></div>${trophy}</div>`;
+    const delBtn = `<button class="del-btn" title="Supprimer" onclick="deleteCard('${c.id}',event)">🗑</button>`;
+    d.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px"><div><div class="fr">${c.fr}</div><div class="en">${c.en||''}</div>${lvl} <span class="dim small">${c.scene||''}</span></div><div style="display:flex;gap:2px;align-items:flex-start">${trophy}${delBtn}</div></div>`;
     w.appendChild(d);
   });
+}
+async function deleteCard(id,ev){
+  ev.stopPropagation();
+  if(!confirm('Supprimer cette phrase ?')) return;
+  await del('cards',id);
+  await del('state',id);
+  toast('Phrase supprimée');
+  renderLibrary(); refreshHome();
 }
 async function claimTrophy(id,ev){
   ev.stopPropagation();
@@ -665,10 +700,16 @@ async function renderData(){
   const cards = await all('cards');
   $('npdNow').textContent = await metaGet('newPerDay',12);
   $('syncUrl').value = await metaGet('captureSyncUrl','');
+  $('userNameInput').value = await metaGet('userName','');
   $('dataInfo').textContent = `${imported.length} packs importés · ${cards.length} phrases · v1`;
 }
 async function setNewPerDay(n){ await metaSet('newPerDay',n); $('npdNow').textContent=n; toast(n+' nouvelles par jour'); }
 async function saveSyncUrl(){ const u=($('syncUrl').value||'').trim(); await metaSet('captureSyncUrl',u); toast(u?'Sync Drive activé ✓':'Sync désactivé'); }
+async function saveUserName(){
+  const n=($('userNameInput').value||'').trim();
+  await metaSet('userName',n);
+  toast(n ? `Bonjour ${n} 👋` : 'Prénom effacé');
+}
 
 /* ---------- backup ---------- */
 async function exportBackup(){
@@ -690,10 +731,25 @@ async function restoreBackup(inp){
   inp.value='';
 }
 
+/* ---------- greeting ---------- */
+async function showGreeting(){
+  const name = await metaGet('userName','');
+  if(!name) return;
+  const h = new Date().getHours();
+  const sal = h<12?'Bonjour':h<18?'Bon après-midi':'Bonsoir';
+  const g=$('greeting');
+  g.textContent=`${sal} ${name} 👋`;
+  g.style.maxHeight='60px'; g.style.opacity='1';
+  setTimeout(()=>{ g.style.opacity='0'; setTimeout(()=>{ g.style.maxHeight='0'; },700); },3000);
+}
+
 /* ---------- boot ---------- */
 (async function(){
   await openDB();
   await refreshHome();
+  showGreeting();
+  // auto-sync any queued captures now that we may be online
+  silentSyncCaptures();
   // auto-check for new packs (silent) when online & hosted
   if(navigator.onLine){ fetch('packs/index.json',{method:'HEAD'}).then(async r=>{ if(r.ok){ await fetchRemotePacks(); } await backfillEpisodes(); }).catch(()=>{}); }
   else { backfillEpisodes(); }

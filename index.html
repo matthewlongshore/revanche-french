@@ -94,6 +94,7 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
 .lvl{display:inline-block;font-size:11px;border-radius:6px;padding:2px 7px;background:var(--bg3);margin-top:6px}
 .lvl.owned{background:var(--gold);color:#000}
 .trophy-btn{background:none;font-size:20px;padding:4px}
+.del-btn{background:none;font-size:16px;padding:4px;opacity:0.4;line-height:1}
 
 /* RECAP */
 .recap-num{font-size:64px;font-weight:800;text-align:center;color:var(--gold)}
@@ -113,6 +114,7 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
       <div class="logo">Re<em>v</em>anche</div>
       <button class="pill" onclick="go('data')">⚙︎</button>
     </div>
+    <div id="greeting" style="text-align:center;font-size:18px;opacity:0;transition:opacity 0.6s;overflow:hidden;max-height:0"></div>
     <div class="stat-row">
       <div class="stat"><b id="stOwned">0</b><span>possédées</span></div>
       <div class="stat"><b id="stDue">0</b><span>à régler</span></div>
@@ -280,7 +282,11 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
       <button class="back" onclick="go('home');refreshHome()">← retour</button>
       <span class="pill">données</span>
     </div>
-    <h2>Packs</h2>
+    <h2>Votre prénom</h2>
+    <p class="dim small">Utilisé pour envoyer vos captures dans la bonne file. Entrez-le une seule fois.</p>
+    <input type="text" id="userNameInput" placeholder="ex: Matt" autocomplete="off" autocorrect="off">
+    <div class="btn-row" style="margin-top:8px"><button onclick="saveUserName()">Enregistrer</button></div>
+    <h2 style="margin-top:26px">Packs</h2>
     <p class="dim small">Colle ici un pack JSON fourni par Claude, ou charge un fichier.</p>
     <div style="height:8px"></div>
     <textarea id="packPaste" rows="4" placeholder='{"id":"pack-…", "cards":[…]}'></textarea>

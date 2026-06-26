@@ -16,12 +16,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # On scheduled/manual runs, turn new captures (from Convex) into a pack and commit it.
-      - name: Process new captures → pack
+      - name: Process captures → pack (matt)
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         env:
           CONVEX_URL: ${{ secrets.CONVEX_URL }}
           CAPTURE_SECRET: ${{ secrets.CAPTURE_SECRET }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CAPTURE_USER: matt
+        run: node scripts/build-captures-pack.mjs
+      - name: Process captures → pack (carolina)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          CONVEX_URL: ${{ secrets.CONVEX_URL }}
+          CAPTURE_SECRET: ${{ secrets.CAPTURE_SECRET }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CAPTURE_USER: carolina
         run: node scripts/build-captures-pack.mjs
       - name: Mine latest podcast episode → pack
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
