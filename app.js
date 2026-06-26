@@ -1,6 +1,8 @@
 /* ============ Revanche — engine ============ */
 'use strict';
 
+const CONVEX_CAPTURE_URL = 'https://energetic-kookabura-198.eu-west-1.convex.site/capture';
+
 /* ---------- tiny IndexedDB wrapper ---------- */
 let db;
 function openDB(){
@@ -574,8 +576,8 @@ async function buildCapturePayload(caps, userName){
   return { captures: payloadCaps };
 }
 async function silentSyncCaptures(){
-  const syncUrl = await metaGet('captureSyncUrl','');
-  if(!syncUrl || !navigator.onLine) return;
+  const syncUrl = (await metaGet('captureSyncUrl','')) || CONVEX_CAPTURE_URL;
+  if(!navigator.onLine) return;
   const caps = await all('captures');
   if(!caps.length) return;
   const userName = await metaGet('userName','');
@@ -596,8 +598,8 @@ async function exportCaptures(){
   if(!caps.length){ toast('Rien à envoyer'); return; }
   const userName = await metaGet('userName','');
   if(!userName){ toast('Entre ton prénom dans les réglages d\'abord'); go('data'); return; }
-  // Drive pipe: if a sync URL is configured, post new captures straight to Convex
-  const syncUrl = await metaGet('captureSyncUrl','');
+  // Drive pipe: post captures to Convex (hardcoded URL, overridable in settings)
+  const syncUrl = (await metaGet('captureSyncUrl','')) || CONVEX_CAPTURE_URL;
   if(syncUrl){
     const payload = await buildCapturePayload(caps, userName);
     try{
@@ -743,11 +745,31 @@ async function showGreeting(){
   setTimeout(()=>{ g.style.opacity='0'; setTimeout(()=>{ g.style.maxHeight='0'; },700); },3000);
 }
 
+/* ---------- setup ---------- */
+async function finishSetup(){
+  const n = ($('setupName').value||'').trim();
+  if(!n){ $('setupName').focus(); return; }
+  await metaSet('userName', n);
+  go('home');
+  await refreshHome();
+  showGreeting();
+}
+
 /* ---------- boot ---------- */
 (async function(){
   await openDB();
-  await refreshHome();
-  showGreeting();
+  const userName = await metaGet('userName','');
+  if(!userName){
+    // first run — show setup screen
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    $('setup').classList.add('active');
+    setTimeout(()=>$('setupName').focus(), 100);
+  } else {
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    $('home').classList.add('active');
+    await refreshHome();
+    showGreeting();
+  }
   // auto-sync any queued captures now that we may be online
   silentSyncCaptures();
   // auto-check for new packs (silent) when online & hosted

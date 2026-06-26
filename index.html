@@ -108,8 +108,18 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
 <body>
 <div id="app">
 
+  <!-- SETUP (first run) -->
+  <section id="setup" class="screen">
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:24px;padding:32px">
+      <div class="logo" style="font-size:36px">Re<em>v</em>anche</div>
+      <p style="text-align:center;font-size:18px;color:var(--ink-dim)">Ton entraîneur de français.<br>Comment tu t'appelles ?</p>
+      <input type="text" id="setupName" placeholder="Ton prénom…" autocomplete="off" autocorrect="off" style="font-size:20px;text-align:center;max-width:260px">
+      <button class="btn-big btn-red" onclick="finishSetup()">C'est parti →</button>
+    </div>
+  </section>
+
   <!-- HOME -->
-  <section id="home" class="screen active">
+  <section id="home" class="screen">
     <div class="topbar">
       <div class="logo">Re<em>v</em>anche</div>
       <button class="pill" onclick="go('data')">⚙︎</button>
@@ -310,10 +320,9 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
       <button class="btn-ghost" onclick="setNewPerDay(18)">18</button>
     </div>
     <p class="dim small" style="margin-top:8px">Actuel : <span id="npdNow">12</span></p>
-    <h2 style="margin-top:26px">Sync des captures</h2>
-    <p class="dim small">Colle l'URL de ton endpoint de capture (Convex, finit par <code>/capture</code>). « Envoyer à Claude » y dépose tes captures, puis le build du matin en fait des cartes.</p>
-    <input type="text" id="syncUrl" placeholder="https://….convex.site/capture">
-    <div class="btn-row" style="margin-top:8px"><button onclick="saveSyncUrl()">Enregistrer l'URL</button></div>
+    <div style="display:none">
+      <input type="text" id="syncUrl">
+    </div>
     <p class="dim small" style="margin-top:26px" id="dataInfo"></p>
   </section>
 
