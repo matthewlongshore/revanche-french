@@ -349,6 +349,13 @@ async function startBalade(){
   const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
   const t = todayStr();
   const _fullSentence = fr => /[.!?…»]$/.test((fr||'').trim());
+  // 20 never-seen cards (not yet introduced), newest packs first
+  let freshPool = cards.filter(c=>stMap[c.id] && !stMap[c.id].introduced && c.audio && c.en && _fullSentence(c.fr));
+  freshPool.sort((a,b)=>(stMap[b.id].addedOn||'').localeCompare(stMap[a.id].addedOn||''));
+  const _seenFr = new Set();
+  freshPool = freshPool.filter(c=>{ if(_seenFr.has(c.fr)) return false; _seenFr.add(c.fr); return true; });
+  freshPool = freshPool.slice(0,20);
+  // 20 introduced cards: due first, then newest
   let pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && c.audio && c.en && _fullSentence(c.fr));
   pool.sort((a,b)=>{
     const aDue = stMap[a.id].due<=t ? 0 : 1;
@@ -360,11 +367,11 @@ async function startBalade(){
     return bDate.localeCompare(aDate);
   });
   // dedup by French text (same phrase can appear in multiple packs)
-  const _seenFr = new Set();
   pool = pool.filter(c=>{ if(_seenFr.has(c.fr)) return false; _seenFr.add(c.fr); return true; });
-  pool = pool.slice(0,40);   // ~10+ min with the French said twice
-  if(!pool.length){ $('baladeStatus').textContent='Rien à réviser pour l\'instant — lance une session d\'abord.'; return; }
-  try{ await buildBaladeTrack(pool); }
+  pool = pool.slice(0,20);
+  const combined = shuffle([...freshPool, ...pool]);
+  if(!combined.length){ $('baladeStatus').textContent='Rien à réviser pour l\'instant — lance une session d\'abord.'; return; }
+  try{ await buildBaladeTrack(combined); }
   catch(e){ $('baladeStatus').textContent='Audio indisponible — il faut redéployer pour générer les voix anglaises. ('+e.message+')'; return; }
   $('baladeStatus').textContent = BAL.bounds.length+' phrases · écran éteint OK · ⏭ pour avancer';
   setupBaladeMediaSession();
@@ -408,7 +415,7 @@ async function buildBaladeTrack(pool){
   const p = player();
   p.src = BAL.url; p.load();
   p.ontimeupdate = baladeSync;
-  p.onended = ()=>{ $('baladePlayBtn').textContent='▶'; };
+  p.onended = ()=>{ $('baladePlayBtn').textContent='▶'; $('baladeStatus').textContent='Balade terminée ✓ — beau travail !'; };
 }
 function baladeSync(){
   const t = player().currentTime; let cur = BAL.bounds[0];
