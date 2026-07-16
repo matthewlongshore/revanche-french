@@ -108,13 +108,19 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
 <body>
 <div id="app">
 
-  <!-- SETUP (first run) -->
+  <!-- SETUP (first run / login) -->
   <section id="setup" class="screen">
-    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:24px;padding:32px">
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:20px;padding:32px">
       <div class="logo" style="font-size:36px">Re<em>v</em>anche</div>
-      <p style="text-align:center;font-size:18px;color:var(--ink-dim)">Ton entraîneur de français.<br>Comment tu t'appelles ?</p>
-      <input type="text" id="setupName" placeholder="Ton prénom…" autocomplete="off" autocorrect="off" style="font-size:20px;text-align:center;max-width:260px">
+      <p style="text-align:center;font-size:18px;color:var(--ink-dim)">Ton entraîneur de français.<br>Qui es-tu ?</p>
+      <div class="btn-row" style="max-width:280px;width:100%">
+        <button id="setupBtnMatthew" class="btn-ghost" onclick="pickSetupName('Matthew')" style="flex:1">Matthew</button>
+        <button id="setupBtnCarolina" class="btn-ghost" onclick="pickSetupName('Carolina')" style="flex:1">Carolina</button>
+      </div>
+      <input type="text" id="setupPin" inputmode="numeric" autocomplete="off" placeholder="Code à 4 chiffres" style="font-size:20px;text-align:center;max-width:260px">
+      <p class="dim small" style="text-align:center;max-width:260px">Première fois : choisis un code, il sera à retenir. Ensuite, entre le même code pour te reconnecter.</p>
       <button class="btn-big btn-red" onclick="finishSetup()">C'est parti →</button>
+      <p id="setupError" class="small" style="color:var(--red);text-align:center;min-height:16px"></p>
     </div>
   </section>
 
@@ -133,7 +139,7 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
     <button class="btn-big btn-red" onclick="startSession()">C'est parti →</button>
     <div style="height:14px"></div>
     <div class="menu-card" onclick="go('library')"><h3>📚 Ton arsenal</h3><div class="dim small" id="libSummary">…</div></div>
-    <div class="menu-card" onclick="go('episodes')"><h3>🎧 Les épisodes</h3><div class="dim small" id="epSummary">Réécoute n'importe quel épisode, autant de fois que tu veux</div></div>
+    <div class="menu-card" id="epMenuCard" onclick="go('episodes')"><h3>🎧 Les épisodes</h3><div class="dim small" id="epSummary">Réécoute n'importe quel épisode, autant de fois que tu veux</div></div>
     <div class="menu-card" onclick="startBalade()"><h3>🚶 Mode balade</h3><div class="dim small">Mains libres : écoute l'anglais, dis le français, écoute la correction. Écran éteint OK — parfait en marchant.</div></div>
     <div class="menu-card" onclick="startSprintOnly()"><h3>⚡ Sprint express</h3><div class="dim small">2 minutes, juste la vitesse. Record : <span id="bestSprint">—</span></div></div>
     <div class="menu-card" onclick="go('capture')"><h3>🎙 File de capture</h3><div class="dim small" id="capSummary">Rien en attente</div></div>
@@ -292,10 +298,14 @@ textarea,input[type=text]{width:100%;background:var(--bg2);border:none;border-ra
       <button class="back" onclick="go('home');refreshHome()">← retour</button>
       <span class="pill">données</span>
     </div>
-    <h2>Votre prénom</h2>
-    <p class="dim small">Utilisé pour envoyer vos captures dans la bonne file. Entrez-le une seule fois.</p>
-    <input type="text" id="userNameInput" placeholder="ex: Matt" autocomplete="off" autocorrect="off">
-    <div class="btn-row" style="margin-top:8px"><button onclick="saveUserName()">Enregistrer</button></div>
+    <h2>Compte</h2>
+    <p class="dim small">Connecté en tant que <b id="loggedInAs">—</b></p>
+    <div class="btn-row" style="margin-top:8px"><button class="btn-ghost" onclick="logout()">Se déconnecter</button></div>
+    <h2 style="margin-top:26px">Épisodes de podcast</h2>
+    <p class="dim small">Désactive pour n'avoir que tes propres captures — plus d'épisode quotidien ni de phrases tirées des épisodes dans tes révisions.</p>
+    <div class="btn-row" style="margin-top:8px">
+      <button id="epToggleBtn" onclick="toggleEpisodes()">Inclure les épisodes : <span id="epToggleState">activé</span></button>
+    </div>
     <h2 style="margin-top:26px">Packs</h2>
     <p class="dim small">Colle ici un pack JSON fourni par Claude, ou charge un fichier.</p>
     <div style="height:8px"></div>

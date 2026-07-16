@@ -131,7 +131,8 @@ const cards = built.map((b, i) => {
   };
 });
 const userName = CAPTURE_USER ? CAPTURE_USER.charAt(0).toUpperCase() + CAPTURE_USER.slice(1) : "";
-const pack = { id, title: `Captures ${userName ? userName + " — " : ""}${today}`, type: "personal", date: today, cards };
+// owner: only this person's phone will import the pack (client matches against its logged-in name)
+const pack = { id, title: `Captures ${userName ? userName + " — " : ""}${today}`, type: "personal", date: today, owner: CAPTURE_USER_SLUG || undefined, cards };
 fs.writeFileSync(path.join(PACKS, file), JSON.stringify(pack));
 
 const idxPath = path.join(PACKS, "index.json");

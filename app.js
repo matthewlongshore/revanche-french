@@ -2,6 +2,8 @@
 'use strict';
 
 const CONVEX_CAPTURE_URL = 'https://energetic-kookabura-198.eu-west-1.convex.site/capture';
+const CONVEX_LOGIN_URL = 'https://energetic-kookabura-198.eu-west-1.convex.site/login';
+const LOGIN_VERSION = 2; // bump forces re-login (used to migrate everyone onto PIN auth)
 
 /* ---------- tiny IndexedDB wrapper ---------- */
 let db;
@@ -128,13 +130,23 @@ async function fetchRemotePacks(){
     const r = await fetch('packs/index.json?t='+Date.now());
     if(!r.ok) throw new Error('introuvable');
     const list = await r.json();                       // ["seed-001.json", ...]
-    const imported = await metaGet('packsImported',[]);
+    let imported = await metaGet('packsImported',[]);
+    const me = (await metaGet('userName','')).toLowerCase();
+    const includeEp = await metaGet('includeEpisodes', true);
     let added=0;
     for(const f of list){
       const id = f.replace(/\.json$/,'');
       if(imported.includes(id)) continue;
       const p = await (await fetch('packs/'+f)).json();
+      // another person's personal-capture pack — never ours, mark seen and move on
+      if(p.owner && p.owner.toLowerCase()!==me){
+        imported.push(id); await metaSet('packsImported', imported);
+        continue;
+      }
+      // episodes turned off — skip for now, but don't mark seen so a future toggle-on picks it up
+      if(p.episode && !includeEp) continue;
       added += await importPack(p);
+      imported = await metaGet('packsImported',[]);
     }
     toast(added? `${added} nouvelles phrases !` : 'Rien de nouveau');
   }catch(e){ toast('Pas de packs en ligne ici ('+e.message+')'); }
@@ -182,12 +194,14 @@ async function playAudioFor(c){
 /* ---------- session ---------- */
 const S = { queue:[], idx:0, phase:'', current:null, shownAt:0, done:0, revDone:0, newDone:0, epDone:false, sprintScore:0, replay:false };
 
+const isEpisodeCard = c => /^ep-/.test(c.packId||'');
 async function buildQueues(opts={}){
-  const cards = await all('cards');
+  let cards = await all('cards');
   const states = await all('state');
   const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
   const t = todayStr();
   const npd = await metaGet('newPerDay',12);
+  if(!(await metaGet('includeEpisodes', true))) cards = cards.filter(c=>!isEpisodeCard(c));
   const rev=[], review=[], fresh=[];
   for(const c of cards){
     const st = stMap[c.id]; if(!st) continue;
@@ -205,7 +219,8 @@ async function buildQueues(opts={}){
 
 async function startSession(){
   const {rev, review, news} = await buildQueues();
-  const ep = await metaGet('episode', null);
+  const includeEp = await metaGet('includeEpisodes', true);
+  const ep = includeEp ? await metaGet('episode', null) : null;
   const epDoneOn = await metaGet('episodeDoneOn','');
   S.queue = [...rev.map(c=>({c,phase:'REVANCHE'})),
              ...review.map(c=>({c,phase:'RÈGLEMENT DE COMPTES'})),
@@ -345,19 +360,18 @@ async function startBalade(){
   go('balade');
   $('baladeEn').textContent=''; $('baladeFr').textContent='';
   $('baladeStatus').textContent='Préparation de la balade…';
-  const cards = await all('cards'); const states = await all('state');
+  let cards = await all('cards'); const states = await all('state');
   const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
+  if(!(await metaGet('includeEpisodes', true))) cards = cards.filter(c=>!isEpisodeCard(c));
   const t = todayStr();
   const _fullSentence = fr => /[.!?…»]$/.test((fr||'').trim());
-  // 20 never-seen cards (not yet introduced), newest packs first
-  let freshPool = cards.filter(c=>stMap[c.id] && !stMap[c.id].introduced && c.audio && c.en && _fullSentence(c.fr));
-  freshPool.sort((a,b)=>(stMap[b.id].addedOn||'').localeCompare(stMap[a.id].addedOn||''));
   const _seenFr = new Set();
-  freshPool = freshPool.filter(c=>{ if(_seenFr.has(c.fr)) return false; _seenFr.add(c.fr); return true; });
-  freshPool = freshPool.slice(0,20);
-  // 20 introduced cards: due first, then newest
-  let pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && c.audio && c.en && _fullSentence(c.fr));
-  pool.sort((a,b)=>{
+  const _dedup = arr => arr.filter(c=>{ if(_seenFr.has(c.fr)) return false; _seenFr.add(c.fr); return true; });
+  const PACK_SIZE = 40;
+  const DECENT_MIN = 5, DECENT_MAX = 10;           // decently-known cards: a small minority, never the bulk
+  const decentQuota = DECENT_MIN + Math.floor(Math.random()*(DECENT_MAX-DECENT_MIN+1));
+  const isMastered = id => (stMap[id].level||0) >= OWNED_LVL || !!stMap[id].trophy;
+  const byDueThenNewest = (a,b)=>{
     const aDue = stMap[a.id].due<=t ? 0 : 1;
     const bDue = stMap[b.id].due<=t ? 0 : 1;
     if(aDue !== bDue) return aDue - bDue;
@@ -365,11 +379,31 @@ async function startBalade(){
     const aDate = stMap[a.id].addedOn || '';
     const bDate = stMap[b.id].addedOn || '';
     return bDate.localeCompare(aDate);
-  });
-  // dedup by French text (same phrase can appear in multiple packs)
-  pool = pool.filter(c=>{ if(_seenFr.has(c.fr)) return false; _seenFr.add(c.fr); return true; });
-  pool = pool.slice(0,20);
-  const combined = shuffle([...freshPool, ...pool]);
+  };
+  // never-seen cards (not yet introduced), newest packs first
+  let freshPool = cards.filter(c=>stMap[c.id] && !stMap[c.id].introduced && c.audio && c.en && _fullSentence(c.fr));
+  freshPool.sort((a,b)=>(stMap[b.id].addedOn||'').localeCompare(stMap[a.id].addedOn||''));
+  freshPool = _dedup(freshPool);
+  // introduced cards, excluding anything mastered (level>=OWNED_LVL or trophy'd) — those
+  // never enter the balade. What's left splits into low-learned (bulk of the review
+  // slice) and decently-known (capped at 5-10 of the 40, so it stays a minority).
+  const introduced = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && !isMastered(c.id) && c.audio && c.en && _fullSentence(c.fr));
+  let lowPool = introduced.filter(c=>(stMap[c.id].level||0) < 3);
+  let decentPool = introduced.filter(c=>(stMap[c.id].level||0) >= 3);
+  lowPool.sort(byDueThenNewest); decentPool.sort(byDueThenNewest);
+  lowPool = _dedup(lowPool);
+  decentPool = _dedup(decentPool).slice(0, decentQuota);
+  // fresh + low-learned roughly split what's left of the pack, each backfilling from
+  // the other if it comes up short, so the balade still lands near 40 cards
+  const restBudget = PACK_SIZE - decentPool.length;
+  const freshBudget = Math.ceil(restBudget/2);
+  let freshSlice = freshPool.slice(0, freshBudget);
+  let lowSlice = lowPool.slice(0, restBudget - freshSlice.length);
+  if(freshSlice.length + lowSlice.length < restBudget){
+    if(freshSlice.length < freshPool.length) freshSlice = freshPool.slice(0, restBudget - lowSlice.length);
+    else lowSlice = lowPool.slice(0, restBudget - freshSlice.length);
+  }
+  const combined = shuffle([...freshSlice, ...lowSlice, ...decentPool]);
   if(!combined.length){ $('baladeStatus').textContent='Rien à réviser pour l\'instant — lance une session d\'abord.'; return; }
   try{ await buildBaladeTrack(combined); }
   catch(e){ $('baladeStatus').textContent='Audio indisponible — il faut redéployer pour générer les voix anglaises. ('+e.message+')'; return; }
@@ -454,8 +488,9 @@ async function startSprintOnly(){
   SP.solo=true; openSprint(pool);
 }
 async function sprintPool(){
-  const cards = await all('cards'); const states = await all('state');
+  let cards = await all('cards'); const states = await all('state');
   const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
+  if(!(await metaGet('includeEpisodes', true))) cards = cards.filter(c=>!isEpisodeCard(c));
   let pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && stMap[c.id].level>=3);
   if(pool.length<8) pool = cards.filter(c=>stMap[c.id] && stMap[c.id].introduced && stMap[c.id].level>=2);
   return shuffle(pool);
@@ -686,8 +721,10 @@ async function countOwned(){
   return states.filter(s=>s.level>=OWNED_LVL).length;
 }
 async function refreshHome(){
-  const cards = await all('cards'); const states = await all('state');
+  const includeEp = await metaGet('includeEpisodes', true);
+  let cards = await all('cards'); const states = await all('state');
   const stMap = Object.fromEntries(states.map(s=>[s.cardId,s]));
+  if(!includeEp) cards = cards.filter(c=>!isEpisodeCard(c));
   const t=todayStr();
   let due=0, rev=0;
   for(const c of cards){
@@ -703,21 +740,33 @@ async function refreshHome(){
   $('capSummary').textContent = caps.length? caps.length+' moment(s) à venger' : 'Rien en attente';
   const scenes = [...new Set(cards.map(c=>c.scene).filter(Boolean))];
   $('libSummary').textContent = cards.length+' phrases · '+scenes.length+' scènes';
+  if($('epMenuCard')) $('epMenuCard').style.display = includeEp ? '' : 'none';
 }
 async function renderData(){
   const imported = await metaGet('packsImported',[]);
   const cards = await all('cards');
   $('npdNow').textContent = await metaGet('newPerDay',12);
   $('syncUrl').value = await metaGet('captureSyncUrl','');
-  $('userNameInput').value = await metaGet('userName','');
+  if($('loggedInAs')) $('loggedInAs').textContent = (await metaGet('userName','')) || '—';
+  const includeEp = await metaGet('includeEpisodes', true);
+  if($('epToggleState')) $('epToggleState').textContent = includeEp ? 'activé' : 'désactivé';
   $('dataInfo').textContent = `${imported.length} packs importés · ${cards.length} phrases · v1`;
 }
 async function setNewPerDay(n){ await metaSet('newPerDay',n); $('npdNow').textContent=n; toast(n+' nouvelles par jour'); }
 async function saveSyncUrl(){ const u=($('syncUrl').value||'').trim(); await metaSet('captureSyncUrl',u); toast(u?'Sync Drive activé ✓':'Sync désactivé'); }
-async function saveUserName(){
-  const n=($('userNameInput').value||'').trim();
-  await metaSet('userName',n);
-  toast(n ? `Bonjour ${n} 👋` : 'Prénom effacé');
+async function toggleEpisodes(){
+  const now = await metaGet('includeEpisodes', true);
+  const next = !now;
+  await metaSet('includeEpisodes', next);
+  toast(next ? 'Épisodes de podcast activés' : 'Épisodes de podcast désactivés — tu ne verras que tes captures');
+  renderData(); refreshHome();
+  if(next) fetchRemotePacks();   // pull in any episode packs missed while it was off
+}
+async function logout(){
+  if(!confirm('Se déconnecter ? Tes phrases restent sur ce téléphone, il faudra juste le code pour te reconnecter.')) return;
+  await metaSet('userName','');
+  await metaSet('loginVersion',0);
+  location.reload();
 }
 
 /* ---------- backup ---------- */
@@ -752,11 +801,31 @@ async function showGreeting(){
   setTimeout(()=>{ g.style.opacity='0'; setTimeout(()=>{ g.style.maxHeight='0'; },700); },3000);
 }
 
-/* ---------- setup ---------- */
+/* ---------- setup / login ---------- */
+let _setupName = '';
+function pickSetupName(name){
+  _setupName = name;
+  $('setupBtnMatthew').className = name==='Matthew' ? 'btn-red' : 'btn-ghost';
+  $('setupBtnCarolina').className = name==='Carolina' ? 'btn-red' : 'btn-ghost';
+  $('setupError').textContent='';
+  $('setupPin').focus();
+}
 async function finishSetup(){
-  const n = ($('setupName').value||'').trim();
-  if(!n){ $('setupName').focus(); return; }
-  await metaSet('userName', n);
+  const err = $('setupError');
+  err.textContent='';
+  if(!_setupName){ err.textContent='Choisis ton prénom.'; return; }
+  const pin = ($('setupPin').value||'').trim();
+  if(pin.length<4){ err.textContent='Code à 4 chiffres minimum.'; $('setupPin').focus(); return; }
+  let data;
+  try{
+    const res = await fetch(CONVEX_LOGIN_URL, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name:_setupName, pin})});
+    data = await res.json();
+  }catch(e){ err.textContent='Pas de connexion — réessaie quand tu es en ligne.'; return; }
+  if(!data || !data.ok){ err.textContent = (data && data.error) || 'Connexion refusée.'; $('setupPin').value=''; $('setupPin').focus(); return; }
+  await metaSet('userName', _setupName);
+  await metaSet('loginVersion', LOGIN_VERSION);
+  $('setupPin').value=''; _setupName='';
   go('home');
   await refreshHome();
   showGreeting();
@@ -766,11 +835,12 @@ async function finishSetup(){
 (async function(){
   await openDB();
   const userName = await metaGet('userName','');
-  if(!userName){
-    // first run — show setup screen
+  const loginVersion = await metaGet('loginVersion', 0);
+  if(!userName || loginVersion < LOGIN_VERSION){
+    // first run, or migrating onto PIN auth — show login screen
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     $('setup').classList.add('active');
-    setTimeout(()=>$('setupName').focus(), 100);
+    if(userName==='Matthew' || userName==='Carolina') pickSetupName(userName);
   } else {
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     $('home').classList.add('active');
